@@ -16,6 +16,7 @@ import { processRecurringEvents } from './recurrence-expander.js';
 import { sortEventsByStartTime } from '../utils/event-utils.js';
 import { logger } from '../utils/logger.js';
 import { normalizeICalUrl, isSupportedICalUrl, previewNonStringValue } from '../utils/url-utils.js';
+import { calculateTimeWindow } from '../utils/time-utils.js';
 
 /**
  * Generate a unique ID for a calendar based on its URL
@@ -430,10 +431,7 @@ class CalendarManager {
       logger.info(`[CalendarManager] Provider: ${parsed.provider || 'unknown'}, ${parsed.events.length} raw events`);
       
       // Calculate time window
-      const now = new Date();
-      const hoursWindow = timeWindow * 24;
-      const startWindow = new Date(now.getTime() - (hoursWindow * 60 * 60 * 1000 / 2));
-      const endWindow = new Date(now.getTime() + (hoursWindow * 60 * 60 * 1000 / 2));
+      const { startWindow, endWindow } = calculateTimeWindow(timeWindow);
       
       // Process recurring events
       let allEvents = processRecurringEvents(parsed.events, startWindow, endWindow);

@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { sec2time, secondsUntil, secondsSince, isWithinHours, sleep } from '../src/utils/time-utils';
+import { sec2time, secondsUntil, secondsSince, isWithinHours, sleep, calculateTimeWindow, PAST_WINDOW_MS } from '../src/utils/time-utils';
 
 describe('sec2time', () => {
   describe('basic formatting', () => {
@@ -238,5 +238,42 @@ describe('sleep', () => {
   it('should return a Promise', () => {
     const result = sleep(1);
     expect(result).toBeInstanceOf(Promise);
+  });
+});
+
+describe('calculateTimeWindow', () => {
+  const now = new Date('2026-11-08T05:19:14.000Z');
+  const HOUR = 60 * 60 * 1000;
+
+  it('should look the full configured number of days ahead', () => {
+    const { endWindow } = calculateTimeWindow(3, now);
+
+    // Must be now + 3 days, NOT now + 1.5 days as a centred window would give.
+    expect(endWindow.toISOString()).toBe('2026-11-11T05:19:14.000Z');
+  });
+
+  it('should include a meeting just past the midpoint of the look-ahead', () => {
+    // Regression: a meeting 36h out fell outside a centred "3 Days" window by
+    // minutes, so the button reported no upcoming meeting.
+    const meeting = new Date(now.getTime() + 36 * HOUR);
+    const { startWindow, endWindow } = calculateTimeWindow(3, now);
+
+    expect(meeting >= startWindow && meeting <= endWindow).toBe(true);
+  });
+
+  it('should keep a fixed backward reach so in-progress meetings stay visible', () => {
+    for (const days of [1, 3, 5, 7]) {
+      const { startWindow } = calculateTimeWindow(days, now);
+      expect(now.getTime() - startWindow.getTime()).toBe(PAST_WINDOW_MS);
+    }
+
+    const startedEarlier = new Date(now.getTime() - 2 * HOUR);
+    expect(startedEarlier >= calculateTimeWindow(1, now).startWindow).toBe(true);
+  });
+
+  it('should exclude events beyond the look-ahead horizon', () => {
+    const { endWindow } = calculateTimeWindow(1, now);
+
+    expect(new Date(now.getTime() + 25 * HOUR) > endWindow).toBe(true);
   });
 });

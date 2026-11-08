@@ -70,6 +70,33 @@ export function isWithinHours(date: Date, hours: number): boolean {
 }
 
 /**
+ * Backward reach of the calendar window, independent of the user's look-ahead
+ * setting. Enough to keep meetings that are already in progress (and recently
+ * started multi-day entries) visible to the Time Left action.
+ */
+export const PAST_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Build the calendar fetch window for a "Look ahead: N Days" setting.
+ *
+ * The setting is a FORWARD promise: N days must mean N days ahead. An earlier
+ * implementation centred the window on now (±N/2 days), so "3 Days" reached
+ * only 36 hours ahead and silently hid meetings just beyond that.
+ *
+ * @param timeWindowDays - Look-ahead setting, in days
+ * @param now - Reference instant, defaults to the current time
+ */
+export function calculateTimeWindow(
+  timeWindowDays: number,
+  now: Date = new Date()
+): { startWindow: Date; endWindow: Date } {
+  return {
+    startWindow: new Date(now.getTime() - PAST_WINDOW_MS),
+    endWindow: new Date(now.getTime() + timeWindowDays * 24 * 60 * 60 * 1000)
+  };
+}
+
+/**
  * Sleep for a specified number of milliseconds
  * @param ms - Milliseconds to sleep
  */
