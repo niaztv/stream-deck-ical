@@ -10,8 +10,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 ### Changed
+- `Look ahead: N Days` now means N days *ahead*. `calculateTimeWindow()` in
+  `src/utils/time-utils.ts` replaces the duplicated window math in
+  `calendar-service.ts` and `calendar-manager.ts`, which centred the window on
+  now (±N/2 days) — so "3 Days" reached only 36 hours forward and silently hid
+  meetings just beyond that. Backward reach is now a fixed `PAST_WINDOW_MS`
+  (24h) so the Time Left action still sees in-progress meetings.
+- `sec2time()` renders durations of a day or more as days plus hours
+  (`1d 12h`) instead of an unreadable bare hour count (`36h`). Sub-day
+  formatting is unchanged.
+- Next Meeting and Smart Calendar keys now show *when* the meeting starts and
+  *what* it is (`Tmrw 18:30` / `Daily stand`) instead of a countdown, via
+  `formatMeetingWhen()` and `formatNextMeetingLabel()`. A countdown answers
+  "how long", which stops being useful past a few hours; Time Left still
+  counts down, where that is the right answer. Keys no longer repaint every
+  tick, since an absolute label only changes when the meeting does.
 
 ### Fixed
+- Recurring events falling in a DST fall-back fold fired an hour late.
+  `fromWallClockDate()` now resolves ambiguous local times to the first
+  instance via luxon's `getPossibleOffsets()`, per RFC 5545 §3.3.5.
+- Pasting a calendar's browser URL (e.g. Google's `/calendar/u/0?cid=...`)
+  surfaced an opaque `Cannot read properties of undefined (reading
+  'propertyGroups')` TypeError. `parseICS()` now rejects non-iCal payloads with
+  an actionable message naming the Secret iCal address.
+- Feeds served with a UTF-8 BOM or leading blank lines failed to parse with the
+  same `propertyGroups` TypeError; the content is normalised before parsing.
 
 ### Removed
 

@@ -13,8 +13,8 @@
 
 import { BaseAction } from './base-action.js';
 import { getStatusText } from '../services/calendar-service.js';
-import { findNextEvent } from '../utils/event-utils.js';
-import { secondsUntil, sec2time } from '../utils/time-utils.js';
+import { findNextEvent, formatNextMeetingLabel } from '../utils/event-utils.js';
+import { secondsUntil } from '../utils/time-utils.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -199,10 +199,10 @@ export class NextMeetingActionBase extends BaseAction {
       await this.setImage(actionId, action, 'nextMeeting');
     }
 
-    // Update title with countdown
-    const timeText = sec2time(secondsRemaining);
-    logger.debug(`[NextMeeting:${actionId}] Display: ${timeText}, image=${imageState}`);
-    await this.setTitleForButton(actionId, action, timeText);
+    // Show WHEN the meeting is and WHAT it is, rather than a countdown
+    const label = formatNextMeetingLabel(nextEvent);
+    logger.debug(`[NextMeeting:${actionId}] Display: ${label.replace(/\n/g, ' | ')}, image=${imageState}`);
+    await this.setTitleForButton(actionId, action, label);
   }
 
   /**

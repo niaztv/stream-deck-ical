@@ -16,7 +16,9 @@ import {
   findNextEvent,
   sortEventsByStartTime,
   filterEventsInWindow,
-  trimForMarquee
+  trimForMarquee,
+  wrapSummary,
+  formatNextMeetingLabel
 } from '../src/utils/event-utils';
 
 // Helper to create test events
@@ -306,5 +308,61 @@ describe('trimForMarquee', () => {
     const result = trimForMarquee('', 5, 0, 1);
     expect(result.text).toBe('');
     expect(result.nextStart).toBe(1);
+  });
+});
+
+describe('wrapSummary', () => {
+  it('should break on word boundaries within the line width', () => {
+    expect(wrapSummary('Daily stand up', 11, 2)).toBe('Daily stand\nup');
+  });
+
+  it('should mark overflow with an ellipsis instead of truncating silently', () => {
+    const result = wrapSummary('RevSpace role-play Daily stand up', 11, 2);
+
+    expect(result.split('\n')).toHaveLength(2);
+    expect(result.endsWith('…')).toBe(true);
+  });
+
+  it('should hard-split a word longer than the line', () => {
+    const result = wrapSummary('Supercalifragilistic', 10, 2);
+
+    expect(result.split('\n')[0]).toBe('Supercalif');
+    expect(result).not.toContain(' ');
+  });
+
+  it('should return empty string for blank summaries', () => {
+    expect(wrapSummary('', 11, 2)).toBe('');
+    expect(wrapSummary('   ', 11, 2)).toBe('');
+  });
+
+  it('should not pad short summaries', () => {
+    expect(wrapSummary('Lunch', 11, 2)).toBe('Lunch');
+  });
+});
+
+describe('formatNextMeetingLabel', () => {
+  const base = (start: Date, summary: string): CalendarEvent => ({
+    uid: 'u', summary, start, end: new Date(start.getTime() + 1800_000), isRecurring: false
+  });
+
+  it('should lead with the clock time, then the meeting name', () => {
+    const now = new Date(2026, 10, 8, 9, 0);
+    const start = new Date(2026, 10, 8, 18, 30);
+
+    expect(formatNextMeetingLabel(base(start, 'Lunch'), now)).toBe('18:30\nLunch');
+  });
+
+  it('should qualify a meeting on the following day', () => {
+    const now = new Date(2026, 10, 8, 9, 0);
+    const start = new Date(2026, 10, 9, 18, 30);
+
+    expect(formatNextMeetingLabel(base(start, 'Lunch'), now)).toBe('Tmrw 18:30\nLunch');
+  });
+
+  it('should fall back to the time alone when there is no summary', () => {
+    const now = new Date(2026, 10, 8, 9, 0);
+    const start = new Date(2026, 10, 8, 18, 30);
+
+    expect(formatNextMeetingLabel(base(start, ''), now)).toBe('18:30');
   });
 });

@@ -65,7 +65,8 @@ vi.mock('../src/services/calendar-manager', () => ({
   }
 }));
 
-vi.mock('../src/utils/event-utils', () => ({
+vi.mock('../src/utils/event-utils', async (importOriginal) => ({
+  ...(await importOriginal()),
   findActiveEvents: vi.fn(() => []),
   findNextEvent: vi.fn(() => undefined)
 }));
@@ -102,6 +103,17 @@ function makeEvent(summary: string, startOffsetMs: number, durationMs: number): 
   };
 }
 
+/**
+ * The label a next-meeting key is expected to carry: when it starts, then what
+ * it is. Derived from local clock parts so the assertion is timezone-agnostic.
+ */
+function expectedLabel(summary: string, startOffsetMs: number): string {
+  const start = new Date(now.getTime() + startOffsetMs);
+  const hh = String(start.getHours()).padStart(2, '0');
+  const mm = String(start.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}\n${summary}`;
+}
+
 /** Debug messages that were routed through the change-guarded debugForButton. */
 function debugCallsMatching(substr: string): string[] {
   return vi.mocked(logger.debug).mock.calls
@@ -132,7 +144,7 @@ afterEach(() => {
 
 // ---------------------------------------------------------------------------
 describe('CombinedActionBase display wiring (#53)', () => {
-  it('sends setTitle once for two identical ticks, again when the title changes', async () => {
+  it('sends setTitle once for two identical ticks, again when the meeting changes', async () => {
     const action = mockAction('c-guard');
     const inst: any = new CombinedActionBase();
     seed(inst, 'c-guard', action);
@@ -144,12 +156,18 @@ describe('CombinedActionBase display wiring (#53)', () => {
     await inst.updateDisplay('c-guard', action);
     await inst.updateDisplay('c-guard', action); // identical -> guard skips
     expect(action.setTitle).toHaveBeenCalledTimes(1);
-    expect(action.setTitle).toHaveBeenLastCalledWith('5m 0s');
+    expect(action.setTitle).toHaveBeenLastCalledWith(expectedLabel('Sync', 5 * 60 * 1000));
 
-    vi.advanceTimersByTime(60_000); // countdown now 4m 0s
+    // The label states WHEN the meeting is, so merely advancing the clock must
+    // not repaint it — only a different meeting does.
+    vi.advanceTimersByTime(60_000);
+    await inst.updateDisplay('c-guard', action);
+    expect(action.setTitle).toHaveBeenCalledTimes(1);
+
+    vi.mocked(findNextEvent).mockReturnValue(makeEvent('Review', 90 * 60 * 1000, 30 * 60 * 1000));
     await inst.updateDisplay('c-guard', action);
     expect(action.setTitle).toHaveBeenCalledTimes(2);
-    expect(action.setTitle).toHaveBeenLastCalledWith('4m 0s');
+    expect(action.setTitle).toHaveBeenLastCalledWith(expectedLabel('Review', 90 * 60 * 1000));
   });
 
   it('buffers the per-tick debug line only once for an identical tick', async () => {
@@ -177,8 +195,8 @@ describe('CombinedActionBase display wiring (#53)', () => {
     const spy = vi.spyOn(inst, 'setTitleForButton');
     await inst.updateDisplay('c-canary', action);
 
-    expect(spy).toHaveBeenCalledWith('c-canary', action, '5m 0s');
-    expect(action.setTitle).toHaveBeenCalledWith('5m 0s');
+    expect(spy).toHaveBeenCalledWith('c-canary', action, expectedLabel('Sync', 5 * 60 * 1000));
+    expect(action.setTitle).toHaveBeenCalledWith(expectedLabel('Sync', 5 * 60 * 1000));
   });
 
   it('paints every differing marquee frame through the guard', async () => {
@@ -257,7 +275,7 @@ describe('CombinedActionBase display wiring (#53)', () => {
 
 // ---------------------------------------------------------------------------
 describe('NextMeetingActionBase display wiring (#53)', () => {
-  it('sends setTitle once for two identical ticks, again when the title changes', async () => {
+  it('sends setTitle once for two identical ticks, again when the meeting changes', async () => {
     const action = mockAction('n-guard');
     const inst: any = new NextMeetingActionBase();
     seed(inst, 'n-guard', action);
@@ -267,12 +285,17 @@ describe('NextMeetingActionBase display wiring (#53)', () => {
     await inst.updateDisplay('n-guard', action);
     await inst.updateDisplay('n-guard', action);
     expect(action.setTitle).toHaveBeenCalledTimes(1);
-    expect(action.setTitle).toHaveBeenLastCalledWith('5m 0s');
+    expect(action.setTitle).toHaveBeenLastCalledWith(expectedLabel('Sync', 5 * 60 * 1000));
 
+    // Clock movement alone must not repaint an absolute-time label.
     vi.advanceTimersByTime(60_000);
     await inst.updateDisplay('n-guard', action);
+    expect(action.setTitle).toHaveBeenCalledTimes(1);
+
+    vi.mocked(findNextEvent).mockReturnValue(makeEvent('Review', 90 * 60 * 1000, 30 * 60 * 1000));
+    await inst.updateDisplay('n-guard', action);
     expect(action.setTitle).toHaveBeenCalledTimes(2);
-    expect(action.setTitle).toHaveBeenLastCalledWith('4m 0s');
+    expect(action.setTitle).toHaveBeenLastCalledWith(expectedLabel('Review', 90 * 60 * 1000));
   });
 
   it('buffers the per-tick debug line only once for an identical tick', async () => {
@@ -298,8 +321,8 @@ describe('NextMeetingActionBase display wiring (#53)', () => {
     const spy = vi.spyOn(inst, 'setTitleForButton');
     await inst.updateDisplay('n-canary', action);
 
-    expect(spy).toHaveBeenCalledWith('n-canary', action, '5m 0s');
-    expect(action.setTitle).toHaveBeenCalledWith('5m 0s');
+    expect(spy).toHaveBeenCalledWith('n-canary', action, expectedLabel('Sync', 5 * 60 * 1000));
+    expect(action.setTitle).toHaveBeenCalledWith(expectedLabel('Sync', 5 * 60 * 1000));
   });
 
   it('paints every differing marquee frame through the guard', async () => {

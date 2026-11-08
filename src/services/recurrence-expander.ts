@@ -116,10 +116,15 @@ function toWallClockDate(date: Date, zone: string): Date {
 /**
  * Convert a "wall-clock" Date produced by RRule back to the real UTC instant
  * by interpreting its UTC components as local time in `zone`.
- * Luxon resolves DST-nonexistent/ambiguous local times sanely.
+ *
+ * Nonexistent local times (spring-forward gap) are shifted forward by luxon.
+ * Ambiguous local times (the hour repeated at a fall-back) are resolved to the
+ * FIRST instance, i.e. the pre-transition offset, as required by RFC 5545
+ * §3.3.5. Luxon on its own picks the post-transition offset, which would make
+ * a recurring meeting in the repeated hour fire an hour late.
  */
 function fromWallClockDate(date: Date, zone: string): Date {
-  return DateTime.fromObject({
+  const dt = DateTime.fromObject({
     year: date.getUTCFullYear(),
     month: date.getUTCMonth() + 1,
     day: date.getUTCDate(),
@@ -127,7 +132,17 @@ function fromWallClockDate(date: Date, zone: string): Date {
     minute: date.getUTCMinutes(),
     second: date.getUTCSeconds(),
     millisecond: date.getUTCMilliseconds()
-  }, { zone }).toJSDate();
+  }, { zone });
+
+  // getPossibleOffsets() returns every instant this wall time maps to: two
+  // during a fall-back fold, one otherwise (including spring-forward gaps,
+  // where it yields luxon's forward-shifted normalization). Taking the
+  // earliest candidate implements the RFC rule without assuming the
+  // transition is a whole hour.
+  const candidates = dt.getPossibleOffsets();
+  const earliest = candidates.reduce((a, b) => (a.toMillis() <= b.toMillis() ? a : b), dt);
+
+  return earliest.toJSDate();
 }
 
 /**

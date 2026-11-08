@@ -681,4 +681,41 @@ END:VCALENDAR`;
       expect(result.events[0].eventTimezone).toBeUndefined();
     });
   });
+
+  describe('non-iCal payload rejection', () => {
+    it('should name the web-page mistake when given a calendar browser URL response', () => {
+      // What Google's /calendar/u/0?cid=... sharing link actually returns.
+      const html = '<!DOCTYPE html><html><head><title>Google Calendar</title></head><body></body></html>';
+
+      expect(() => parseICS(html)).toThrow(/web page, not a calendar feed/);
+      expect(() => parseICS(html)).toThrow(/Secret address in iCal format/);
+    });
+
+    it('should reject a non-HTML, non-iCal body without leaking parser internals', () => {
+      expect(() => parseICS('{"error":"Not Found"}')).toThrow(/no BEGIN:VCALENDAR found/);
+      expect(() => parseICS('')).toThrow(/no BEGIN:VCALENDAR found/);
+      expect(() => parseICS('{"error":"Not Found"}')).not.toThrow(/propertyGroups/);
+    });
+
+    it('should not be satisfied by a BEGIN:VCALENDAR line buried in an HTML page', () => {
+      // The probe is anchored to the first line precisely so a page quoting a
+      // sample feed cannot pass itself off as one.
+      const page = '<!DOCTYPE html>\n<pre>\nBEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR\n</pre>';
+
+      expect(() => parseICS(page)).toThrow(/web page, not a calendar feed/);
+    });
+
+    it('should accept CRLF feeds and tolerate trailing spaces on the opening line', () => {
+      const crlf = 'BEGIN:VCALENDAR \r\nVERSION:2.0\r\nPRODID:-//Apple Inc.//Mac OS X//EN\r\nEND:VCALENDAR';
+
+      expect(parseICS(crlf).provider).toBe('apple');
+    });
+
+    it('should accept a feed behind a UTF-8 BOM or leading blank lines', () => {
+      const body = 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Google Inc//EN\nEND:VCALENDAR';
+
+      expect(parseICS(`\uFEFF${body}`).provider).toBe('google');
+      expect(parseICS(`\n\n  ${body}`).provider).toBe('google');
+    });
+  });
 });

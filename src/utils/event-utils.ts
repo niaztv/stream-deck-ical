@@ -7,6 +7,7 @@
  */
 
 import { CalendarEvent } from '../types/index.js';
+import { formatMeetingWhen } from './time-utils.js';
 
 /**
  * Check if an event is currently active (happening now)
@@ -111,4 +112,71 @@ export function trimForMarquee(
     text: segment,
     nextStart: start + 1
   };
+}
+
+/**
+ * Wrap a meeting summary onto a Stream Deck key, breaking on word boundaries.
+ *
+ * Overflow is marked with an ellipsis on the final line so a truncated title
+ * is visibly truncated rather than silently misleading.
+ *
+ * @param text - Meeting summary
+ * @param width - Characters per line
+ * @param maxLines - Maximum number of lines
+ */
+export function wrapSummary(text: string, width = 11, maxLines = 2): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '';
+
+  const lines: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    // A single word longer than the line is hard-split rather than dropped.
+    let pending = word;
+    while (pending.length > width) {
+      if (current) {
+        lines.push(current);
+        current = '';
+      }
+      if (lines.length >= maxLines) break;
+      lines.push(pending.slice(0, width));
+      pending = pending.slice(width);
+    }
+    if (lines.length >= maxLines) break;
+
+    const candidate = current ? `${current} ${pending}` : pending;
+    if (candidate.length <= width) {
+      current = candidate;
+    } else {
+      if (current) lines.push(current);
+      current = pending;
+    }
+    if (lines.length >= maxLines) break;
+  }
+
+  if (current && lines.length < maxLines) lines.push(current);
+
+  const consumed = lines.join(' ').replace(/\s+/g, ' ').trim();
+  const whole = words.join(' ');
+  if (consumed.length < whole.length) {
+    const last = lines[maxLines - 1] ?? '';
+    lines[maxLines - 1] = `${last.slice(0, Math.max(0, width - 1))}…`;
+  }
+
+  return lines.slice(0, maxLines).join('\n');
+}
+
+/**
+ * Build the Stream Deck key label for an upcoming meeting: when it starts,
+ * then what it is.
+ *
+ * @param event - The upcoming event
+ * @param now - Reference instant, defaults to the current time
+ */
+export function formatNextMeetingLabel(event: CalendarEvent, now: Date = new Date()): string {
+  const when = formatMeetingWhen(event.start, now);
+  const what = wrapSummary(event.summary ?? '');
+
+  return what ? `${when}\n${what}` : when;
 }

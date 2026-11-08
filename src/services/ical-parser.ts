@@ -125,10 +125,33 @@ function extractCalendarTimezone(vcalendar: ICAL.Component): string | undefined 
 
 /**
  * Parse iCal string into structured data using ical.js
+ *
+ * @throws If the payload is not an iCal feed. Pasting a calendar's browser
+ *   URL (e.g. Google's `/calendar/u/0?cid=...` sharing link) instead of its
+ *   `.ics` address returns an HTML page, which would otherwise surface as an
+ *   opaque TypeError from ical.js internals.
  */
 export function parseICS(icsContent: string): ParsedCalendar {
+  // Strip a UTF-8 BOM and leading blank lines up front: both occur in real
+  // feeds, both defeat the anchored probe below, and ICAL.parse itself fails
+  // on them with an opaque "propertyGroups" TypeError.
+  const normalized = icsContent.replace(/^\uFEFF/, '').trimStart();
+
+  // Anchored to the first line WITHOUT the `m` flag on purpose: RFC 5545
+  // requires VCALENDAR to be the outermost component, so a BEGIN:VCALENDAR
+  // appearing further down (e.g. an HTML page quoting a sample feed) must not
+  // satisfy the check.
+  if (!/^BEGIN:VCALENDAR[ \t]*(\r?\n|$)/i.test(normalized)) {
+    const looksLikeHtml = /^(<!DOCTYPE|<html)/i.test(normalized);
+    throw new Error(
+      looksLikeHtml
+        ? 'URL returned a web page, not a calendar feed. Use the calendar\'s iCal/ICS address (Google: Settings and sharing → Integrate calendar → "Secret address in iCal format").'
+        : 'Response is not an iCal feed (no BEGIN:VCALENDAR found).'
+    );
+  }
+
   // Parse the iCal data
-  const jcalData = ICAL.parse(icsContent);
+  const jcalData = ICAL.parse(normalized);
   const vcalendar = new ICAL.Component(jcalData);
 
   // Extract calendar metadata

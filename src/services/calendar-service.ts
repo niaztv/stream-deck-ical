@@ -12,6 +12,7 @@ import { CalendarCache, CalendarEvent, ErrorState } from '../types/index.js';
 import { logger, debugLogs, isDebugMode } from '../utils/logger.js';
 import { sortEventsByStartTime, filterEventsInWindow } from '../utils/event-utils.js';
 import { normalizeICalUrl, isSupportedICalUrl, previewNonStringValue } from '../utils/url-utils.js';
+import { calculateTimeWindow } from '../utils/time-utils.js';
 
 /**
  * Global calendar cache
@@ -147,10 +148,7 @@ export async function updateCalendarCache(
     logger.info(`📅 Provider detected: ${parsed.provider || 'unknown'}, parsed ${parsed.events.length} raw events`);
     
     // Calculate time window
-    const now = new Date();
-    const hoursWindow = timeWindowDays * 24;
-    const startWindow = new Date(now.getTime() - (hoursWindow * 60 * 60 * 1000 / 2));
-    const endWindow = new Date(now.getTime() + (hoursWindow * 60 * 60 * 1000 / 2));
+    const { startWindow, endWindow } = calculateTimeWindow(timeWindowDays);
     
     logger.debug(`Time window: ${startWindow.toISOString()} to ${endWindow.toISOString()}`);
     

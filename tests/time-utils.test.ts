@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { sec2time, secondsUntil, secondsSince, isWithinHours, sleep } from '../src/utils/time-utils';
+import { sec2time, secondsUntil, secondsSince, isWithinHours, sleep, calculateTimeWindow, PAST_WINDOW_MS, formatMeetingWhen } from '../src/utils/time-utils';
 
 describe('sec2time', () => {
   describe('basic formatting', () => {
@@ -50,9 +50,18 @@ describe('sec2time', () => {
       expect(sec2time(10800)).toBe('3h');
     });
 
-    it('should handle very large values', () => {
-      expect(sec2time(86400)).toBe('24h'); // 24 hours
-      expect(sec2time(172800)).toBe('48h'); // 48 hours
+    it('should render a day or more as days plus hours', () => {
+      expect(sec2time(86400)).toBe('1d');
+      expect(sec2time(129600)).toBe('1d 12h'); // 36h — was the unreadable "36h"
+      expect(sec2time(172800)).toBe('2d');
+      expect(sec2time(183600)).toBe('2d 3h');
+      expect(sec2time(86400 + 59 * 60)).toBe('1d'); // sub-hour remainder dropped
+      expect(sec2time(-129600)).toBe('- 1d 12h');
+    });
+
+    it('should still collapse sub-day durations to hours', () => {
+      expect(sec2time(82800)).toBe('23h');
+      expect(sec2time(86399)).toBe('23h');
     });
 
     it('should handle fractional seconds (floor)', () => {
@@ -238,5 +247,86 @@ describe('sleep', () => {
   it('should return a Promise', () => {
     const result = sleep(1);
     expect(result).toBeInstanceOf(Promise);
+  });
+});
+
+describe('calculateTimeWindow', () => {
+  const now = new Date('2026-11-08T05:19:14.000Z');
+  const HOUR = 60 * 60 * 1000;
+
+  it('should look the full configured number of days ahead', () => {
+    const { endWindow } = calculateTimeWindow(3, now);
+
+    // Must be now + 3 days, NOT now + 1.5 days as a centred window would give.
+    expect(endWindow.toISOString()).toBe('2026-11-11T05:19:14.000Z');
+  });
+
+  it('should include a meeting just past the midpoint of the look-ahead', () => {
+    // Regression: a meeting 36h out fell outside a centred "3 Days" window by
+    // minutes, so the button reported no upcoming meeting.
+    const meeting = new Date(now.getTime() + 36 * HOUR);
+    const { startWindow, endWindow } = calculateTimeWindow(3, now);
+
+    expect(meeting >= startWindow && meeting <= endWindow).toBe(true);
+  });
+
+  it('should keep a fixed backward reach so in-progress meetings stay visible', () => {
+    for (const days of [1, 3, 5, 7]) {
+      const { startWindow } = calculateTimeWindow(days, now);
+      expect(now.getTime() - startWindow.getTime()).toBe(PAST_WINDOW_MS);
+    }
+
+    const startedEarlier = new Date(now.getTime() - 2 * HOUR);
+    expect(startedEarlier >= calculateTimeWindow(1, now).startWindow).toBe(true);
+  });
+
+  it('should exclude events beyond the look-ahead horizon', () => {
+    const { endWindow } = calculateTimeWindow(1, now);
+
+    expect(new Date(now.getTime() + 25 * HOUR) > endWindow).toBe(true);
+  });
+});
+
+describe('formatMeetingWhen', () => {
+  const now = new Date(2026, 10, 8, 9, 0); // Sun 8 Nov 2026, 09:00 local
+
+  it('should show bare time for a meeting later today', () => {
+    expect(formatMeetingWhen(new Date(2026, 10, 8, 18, 30), now)).toBe('18:30');
+    expect(formatMeetingWhen(new Date(2026, 10, 8, 9, 5), now)).toBe('09:05');
+  });
+
+  it('should label the next calendar day regardless of hours away', () => {
+    // 00:30 tomorrow is 15.5h out; 23:00 tomorrow is 38h out. Both "Tmrw".
+    expect(formatMeetingWhen(new Date(2026, 10, 9, 0, 30), now)).toBe('Tmrw 00:30');
+    expect(formatMeetingWhen(new Date(2026, 10, 9, 23, 0), now)).toBe('Tmrw 23:00');
+  });
+
+  it('should use the weekday within the coming week', () => {
+    expect(formatMeetingWhen(new Date(2026, 10, 11, 17, 30), now)).toBe('Wed 17:30');
+  });
+
+  it('should use day and month beyond a week', () => {
+    expect(formatMeetingWhen(new Date(2026, 11, 15, 8, 0), now)).toBe('15 Dec 08:00');
+  });
+
+  it('should classify the next calendar day across DST transitions', () => {
+    // Local midnights either side of a transition are 23h or 25h apart, not
+    // 24h. Day classification must stay on calendar dates regardless.
+    // Covers both EU (Mar/Oct) and US (Mar/Nov) transition weekends; in a zone
+    // without DST these are ordinary days and must behave identically.
+    const boundaries: Array<[number, number]> = [
+      [2, 29], // EU spring forward
+      [2, 8],  // US spring forward
+      [9, 25], // EU fall back
+      [10, 1]  // US fall back
+    ];
+
+    for (const [month, day] of boundaries) {
+      const dayBefore = new Date(2026, month, day - 1, 12, 0);
+      const transitionDay = new Date(2026, month, day, 12, 0);
+
+      expect(formatMeetingWhen(transitionDay, dayBefore)).toBe('Tmrw 12:00');
+      expect(formatMeetingWhen(transitionDay, transitionDay)).toBe('12:00');
+    }
   });
 });

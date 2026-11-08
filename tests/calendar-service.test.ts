@@ -556,13 +556,16 @@ describe('All-Day Event Filtering', () => {
   });
 
   it('should detect all-day events from parsed iCal', async () => {
+    const now = new Date();
+    const dayStart = formatICSDateOnly(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+    const dayEnd = formatICSDateOnly(new Date(now.getTime() + 48 * 60 * 60 * 1000));
     const allDayIcs = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Test//Test//EN
 BEGIN:VEVENT
 UID:all-day-test
-DTSTART;VALUE=DATE:20260201
-DTEND;VALUE=DATE:20260202
+DTSTART;VALUE=DATE:${dayStart}
+DTEND;VALUE=DATE:${dayEnd}
 SUMMARY:All Day Event
 END:VEVENT
 END:VCALENDAR`;
@@ -579,13 +582,16 @@ END:VCALENDAR`;
   });
 
   it('should include all-day events when excludeAllDay is false', async () => {
+    const now = new Date();
+    const dayStart = formatICSDateOnly(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+    const dayEnd = formatICSDateOnly(new Date(now.getTime() + 48 * 60 * 60 * 1000));
     const allDayIcs = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Test//Test//EN
 BEGIN:VEVENT
 UID:all-day-test
-DTSTART;VALUE=DATE:20260201
-DTEND;VALUE=DATE:20260202
+DTSTART;VALUE=DATE:${dayStart}
+DTEND;VALUE=DATE:${dayEnd}
 SUMMARY:All Day Event
 END:VEVENT
 END:VCALENDAR`;
@@ -662,14 +668,17 @@ describe('All-Day Event Detection - Calendar Provider Compatibility', () => {
   describe('Google Calendar', () => {
     it('should detect Google Calendar all-day events (VALUE=DATE format)', async () => {
       // Google Calendar uses VALUE=DATE for all-day events
+      const now = new Date();
+      const dayStart = formatICSDateOnly(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+      const dayEnd = formatICSDateOnly(new Date(now.getTime() + 48 * 60 * 60 * 1000));
       const googleAllDayIcs = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Google Inc//Google Calendar 70.9054//EN
 X-WR-CALNAME:Test Calendar
 BEGIN:VEVENT
 UID:google-all-day@google.com
-DTSTART;VALUE=DATE:20260201
-DTEND;VALUE=DATE:20260202
+DTSTART;VALUE=DATE:${dayStart}
+DTEND;VALUE=DATE:${dayEnd}
 SUMMARY:Google All Day Event
 STATUS:CONFIRMED
 END:VEVENT
@@ -739,6 +748,9 @@ END:VCALENDAR`;
   describe('Microsoft Outlook / Office 365', () => {
     it('should detect Outlook all-day events (VALUE=DATE format)', async () => {
       // Outlook/O365 uses VALUE=DATE for all-day events
+      const now = new Date();
+      const dayStart = formatICSDateOnly(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+      const dayEnd = formatICSDateOnly(new Date(now.getTime() + 48 * 60 * 60 * 1000));
       const outlookAllDayIcs = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Microsoft Corporation//Outlook 16.0 MIMEDIR//EN
@@ -761,8 +773,8 @@ END:DAYLIGHT
 END:VTIMEZONE
 BEGIN:VEVENT
 UID:outlook-all-day@outlook.com
-DTSTART;VALUE=DATE:20260201
-DTEND;VALUE=DATE:20260202
+DTSTART;VALUE=DATE:${dayStart}
+DTEND;VALUE=DATE:${dayEnd}
 SUMMARY:Outlook All Day Event
 STATUS:CONFIRMED
 X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
@@ -818,14 +830,17 @@ END:VCALENDAR`;
   describe('Apple Calendar / iCloud', () => {
     it('should detect Apple Calendar all-day events (VALUE=DATE format)', async () => {
       // Apple Calendar uses VALUE=DATE for all-day events
+      const now = new Date();
+      const dayStart = formatICSDateOnly(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+      const dayEnd = formatICSDateOnly(new Date(now.getTime() + 48 * 60 * 60 * 1000));
       const appleAllDayIcs = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Apple Inc.//Mac OS X 10.15.7//EN
 CALSCALE:GREGORIAN
 BEGIN:VEVENT
 UID:apple-all-day@icloud.com
-DTSTART;VALUE=DATE:20260201
-DTEND;VALUE=DATE:20260202
+DTSTART;VALUE=DATE:${dayStart}
+DTEND;VALUE=DATE:${dayEnd}
 SUMMARY:Apple All Day Event
 STATUS:CONFIRMED
 CREATED:20260101T000000Z
@@ -845,14 +860,17 @@ END:VCALENDAR`;
 
     it('should detect Apple Calendar multi-day all-day events', async () => {
       // Apple Calendar multi-day events have DTEND = DTSTART + N days
+      const now = new Date();
+      const dayStart = formatICSDateOnly(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+      const dayEnd = formatICSDateOnly(new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000));
       const appleMultiDayIcs = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Apple Inc.//Mac OS X 10.15.7//EN
 CALSCALE:GREGORIAN
 BEGIN:VEVENT
 UID:apple-multi-day@icloud.com
-DTSTART;VALUE=DATE:20260201
-DTEND;VALUE=DATE:20260205
+DTSTART;VALUE=DATE:${dayStart}
+DTEND;VALUE=DATE:${dayEnd}
 SUMMARY:4-Day Conference
 STATUS:CONFIRMED
 END:VEVENT
